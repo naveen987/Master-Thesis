@@ -1,0 +1,86 @@
+/* General body styling */
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f8f9fa; /* Light gray background */
+}
+
+/* Container for the login box */
+.login-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    text-align: center;
+    width: 350px; /* Fixed width for the login box */
+}
+
+/* Welcome message styling */
+.login-container h1 {
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #333; /* Dark gray text */
+}
+
+/* Input fields styling */
+.login-container input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #ced4da; /* Subtle border */
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+/* Focus effect for input fields */
+.login-container input:focus {
+    border-color: #007bff; /* Blue border on focus */
+    outline: none;
+    box-shadow: 0 0 4px rgba(0, 123, 255, 0.25); /* Subtle blue shadow */
+}
+
+/* Continue button styling */
+.login-container button {
+    width: 100%;
+    padding: 12px;
+    background-color: #007bff; /* Blue background */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+/* Hover effect for the button */
+.login-container button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Error message styling */
+.error {
+    color: #dc3545; /* Red text for error messages */
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* Signup link styling */
+.signup-link {
+    margin-top: 15px;
+    display: block;
+    color: #007bff; /* Blue link */
+    text-decoration: none;
+    font-size: 14px;
+}
+
+/* Hover effect for the signup link */
+.signup-link:hover {
+    text-decoration: underline;
+}

@@ -1,0 +1,13 @@
+ctransformers
+google-cloud-storage
+sentence-transformers
+pinecone-client==2.2.4
+langchain
+langchain-community
+langchain-together
+streamlit
+streamlit-chat
+flask
+pypdf
+python-dotenv
+-e .
