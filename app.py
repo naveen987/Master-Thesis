@@ -8,20 +8,26 @@ from langchain.chains import RetrievalQA
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 from dotenv import load_dotenv
+from sentence_transformers import SentenceTransformer
 import os
+import logging
 import warnings
 import asyncio
 
 # Suppress PyTorch warnings
 warnings.filterwarnings("ignore", message=".*torch.utils._pytree.*")
 
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+
 # Load environment variables
 load_dotenv()
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
-index_name = "new"
+index_name = "zf"
 
-# Load embeddings
+# Load embeddings for all-mpnet-base-v2 (768-dimensional embeddings)
+embedding_model = SentenceTransformer('all-mpnet-base-v2')
 embeddings = download_hugging_face_embeddings()
 
 # Initialize Pinecone
@@ -29,7 +35,7 @@ pinecone_instance = PineconeClient(api_key=PINECONE_API_KEY)
 if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
     pinecone_instance.create_index(
         name=index_name,
-        dimension=768,
+        dimension=768,  # Updated for 768-dimensional embeddings
         metric='cosine',
         spec=ServerlessSpec(cloud='aws', region=PINECONE_API_ENV)
     )
@@ -38,7 +44,16 @@ if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
 docsearch = Pinecone.from_existing_index(index_name, embeddings)
 
 # Define prompt template
-PROMPT = PromptTemplate(template="Answer the following question: {context}", input_variables=["context", "question"])
+PROMPT = PromptTemplate(
+    template=(
+        "You are a medical assistant. Based on the following context, "
+        "answer the question concisely and accurately:\n\n"
+        "Context: {context}\n\n"
+        "Question: {question}\n\n"
+        "Answer:"
+    ),
+    input_variables=["context", "question"]
+)
 chain_type_kwargs = {"prompt": PROMPT}
 
 # Define Chat Profiles
@@ -46,114 +61,108 @@ chain_type_kwargs = {"prompt": PROMPT}
 async def chat_profiles():
     return [
         cl.ChatProfile(
-            name="LLAMA",
-            markdown_description="A versatile assistant capable of handling general inquiries.",
-        ),
-        cl.ChatProfile(
-            name="Mistral",
-            markdown_description="An assistant specialized in providing technical support.",
+            name="Mistral Biomedical",
+            markdown_description="An assistant specialized in biomedical and medical queries.",
         )
     ]
 
 # Initialize the LLM
 def initialize_llm(profile_name):
-    model_path = "model/llama-2-13b-chat.ggmlv3.q4_0.bin"  # Default model path
-    if profile_name == "Technical Support":
-        model_path = "model/tech_support_model.bin"
-    elif profile_name == "Sales Advisor":
-        model_path = "model/sales_advisor_model.bin"
-    # Initialize the LLM with the selected model
+    model_path = "model/mistral-13b-v0.1.Q3_K_M.gguf"  # Updated to Mistral Long Context model path
     return CTransformers(
         model=model_path,
-        model_type="llama",
+        model_type="mistral",
         config={
-            'max_new_tokens': 512,
+            'max_new_tokens': 4096,  # Number of tokens to generate
+            'context_length': 4096,  # Explicitly set context length to 4096
             'temperature': 0.5
         }
     )
 
-# Truncate context to fit within the LLM's token limit
-def truncate_context(context, max_tokens=512):
-    return context[:max_tokens]
+# Truncate context for the model's token limit
+def truncate_context(context, max_tokens=4096):
+    """
+    Truncate the context to fit within the maximum token limit.
+    """
+    tokens = context.split()
+    if len(tokens) > max_tokens:
+        return " ".join(tokens[-max_tokens:])  # Keep only the last max_tokens tokens
+    return context
 
 # Define synchronous long-running task
 def long_running_task(input_data, llm):
-    """Long-running synchronous task for LLM inference."""
-    print("Generating response...")
+    """Improved long-running synchronous task for LLM inference."""
+    logging.info("Generating response...")
     qa = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=docsearch.as_retriever(search_kwargs={'k': 2}),
+        retriever=docsearch.as_retriever(search_kwargs={'k': 5}),
         return_source_documents=True,
-        chain_type_kwargs=chain_type_kwargs
+        chain_type_kwargs={"prompt": PROMPT}
     )
     result = qa.invoke(input_data)
-    print("Response generated:", result["result"])
+    logging.info("Response generated: %s", result["result"])
     return result["result"]
 
-# Convert the synchronous function to an asynchronous one
+# Convert to async task
 async_long_running_task = cl.make_async(long_running_task)
 
 @cl.on_chat_start
 async def start_chat():
     """Send a welcome message when the chat starts."""
-    await cl.Message(content="Welcome! Please select a chat profile to begin or upload a PDF to extract text and ask questions.").send()
+    await cl.Message(content="Welcome! Upload a PDF or ask a biomedical question to get started.").send()
 
 @cl.on_message
 async def handle_message(message):
     """Handle user messages and file uploads."""
     try:
         if message.type == "file":
-            print("Processing uploaded file...")
+            logging.info("Processing uploaded file...")
             loader = PyPDFLoader(message.file_path)
             documents = loader.load()
 
             # Split text into manageable chunks
-            text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            text_splitter = CharacterTextSplitter(chunk_size=4000, chunk_overlap=500)
             texts = text_splitter.split_documents(documents)
 
-            # Add chunks to Pinecone index
-            for text in texts:
-                docsearch.add_texts([text.page_content])
+            # Add chunks to Pinecone index in batches
+            batch_size = 10
+            for i in range(0, len(texts), batch_size):
+                docsearch.add_texts([t.page_content for t in texts[i:i + batch_size]])
 
             await cl.Message(content="PDF uploaded and processed successfully! You can now ask questions about its content.").send()
             return
 
         # Handle regular text messages
-        print("Message received from UI:", message.content)
+        logging.info("Message received from UI: %s", message.content)
         query = message.content
 
         # Retrieve the selected chat profile
-        chat_profile = cl.user_session.get("chat_profile")
-        if not chat_profile:
-            await cl.Message(content="Please select a chat profile to proceed.").send()
-            return
+        chat_profile = cl.user_session.get("chat_profile", "Mistral Biomedical")
 
         # Initialize the LLM based on the selected chat profile
         llm = initialize_llm(chat_profile)
 
-        # Send an initial "processing" message
-        processing_message = await cl.Message(content=f"Processing your request with the '{chat_profile}' profile, please wait...").send()
+        # Send a processing message
+        await cl.Message(content=f"Processing your request with the '{chat_profile}' profile, please wait...").send()
 
         # Retrieve documents
-        print("Retrieving documents...")
-        retriever = docsearch.as_retriever(search_kwargs={'k': 2})
+        retriever = docsearch.as_retriever(search_kwargs={'k': 5})
         docs = retriever.invoke(query)
 
         # Combine and truncate context
-        print("Processing retrieved documents...")
         context = " ".join([doc.page_content for doc in docs])
-        truncated_context = truncate_context(context, max_tokens=512)
+        truncated_context = truncate_context(context, max_tokens=4096)
 
         # Prepare input data for the LLM
         input_data = {"query": query, "context": truncated_context}
 
-        # Call the asynchronous long-running task
+        # Call the async long-running task
         result = await async_long_running_task(input_data, llm)
 
         # Update the user with the result
         await cl.Message(content=result).send()
-        print("Response sent successfully!")
+        logging.info("Response sent successfully!")
     except Exception as e:
-        print(f"Error occurred: {e}")
+        logging.error("Error occurred: %s", e)
         await cl.Message(content="An error occurred while processing your request. Please try again.").send()

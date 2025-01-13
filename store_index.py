@@ -1,18 +1,28 @@
-from src.helper import load_pdf, text_split, download_hugging_face_embeddings
+import json
+from src.helper import download_hugging_face_embeddings
 from langchain.vectorstores import Pinecone
 from pinecone import Pinecone as PineconeClient, ServerlessSpec
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# Load environment variablesmm
 load_dotenv()
 
 PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 PINECONE_API_ENV = os.environ.get('PINECONE_API_ENV')
 
-# Load PDF data and split into chunks
-extracted_data = load_pdf("data/")
-text_chunks = text_split(extracted_data)
+# Load JSON data
+with open('scraped_data_subsections.json', 'r') as file:
+    data = json.load(file)
+
+# Extract text chunks from JSON data
+text_chunks = []
+for item in data:
+    for subsection in item['subsections']:
+        # Combine heading and content for meaningful context
+        heading = subsection.get('heading', '')
+        content = ' '.join(subsection.get('content', []))
+        text_chunks.append(f"{heading}: {content}")
 
 # Download embeddings
 embeddings = download_hugging_face_embeddings()
@@ -35,9 +45,11 @@ if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
         )
     )
 
-# Access the index
+# Access the index and upload data
 docsearch = Pinecone.from_texts(
-    [t.page_content for t in text_chunks],
+    text_chunks,  # Use the prepared text chunks
     embeddings,
     index_name=index_name
 )
+
+print("Data successfully uploaded to Pinecone!")
