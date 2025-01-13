@@ -21,7 +21,7 @@ embeddings = download_hugging_face_embeddings()
 pinecone_instance = PineconeClient(api_key=PINECONE_API_KEY)
 
 # Index name
-index_name = "new"
+index_name = "zf"
 
 # Check if the index exists, create it if not
 if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
@@ -31,7 +31,7 @@ if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
         metric="cosine",  # Use 'cosine', 'euclidean', or other metrics as needed
         spec=ServerlessSpec(
             cloud="aws",  # Update the cloud provider if different
-            region=PINECONE_API_ENV
+            region="us-east-1"
         )
     )
 
