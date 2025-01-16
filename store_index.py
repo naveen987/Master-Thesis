@@ -5,24 +5,36 @@ from pinecone import Pinecone as PineconeClient, ServerlessSpec
 from dotenv import load_dotenv
 import os
 
-# Load environment variablesmm
+# Load environment variables
 load_dotenv()
 
+# Retrieve Pinecone API credentials from environment variables
 PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 PINECONE_API_ENV = os.environ.get('PINECONE_API_ENV')
 
-# Load JSON data
-with open('scraped_data_subsections.json', 'r') as file:
-    data = json.load(file)
+# Load JSON data from the first file
+with open('scraped_data_subsections.json', 'r', encoding='utf-8') as file1:
+    data1 = json.load(file1)
 
-# Extract text chunks from JSON data
+# Extract text chunks from the first JSON
 text_chunks = []
-for item in data:
+for item in data1:
     for subsection in item['subsections']:
-        # Combine heading and content for meaningful context
         heading = subsection.get('heading', '')
         content = ' '.join(subsection.get('content', []))
         text_chunks.append(f"{heading}: {content}")
+
+# Load JSON data from the second file
+with open('cleaned_doctors_data_multiple_locations.json', 'r', encoding='utf-8') as file2:
+    data2 = json.load(file2)
+
+# Extract text chunks from the second JSON
+for entry in data2:
+    doctor_name = entry.get('Doctor Name', entry.get('doctor_name', 'Unknown Doctor'))
+    specialty = entry.get('Specialty', entry.get('specialty', 'General'))
+    location = entry.get('Location', entry.get('location', 'Unknown Location'))
+    address = entry.get('Address', entry.get('address', 'Unknown Address'))
+    text_chunks.append(f"Doctor: {doctor_name}, Specialty: {specialty}, Location: {location}, Address: {address}")
 
 # Download embeddings
 embeddings = download_hugging_face_embeddings()
@@ -35,19 +47,17 @@ index_name = "zf"
 
 # Check if the index exists, create it if not
 if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
+    print(f"Creating index '{index_name}'...")
     pinecone_instance.create_index(
         name=index_name,
-        dimension=768,  # Update this dimension to match your embedding model
-        metric="cosine",  # Use 'cosine', 'euclidean', or other metrics as needed
-        spec=ServerlessSpec(
-            cloud="aws",  # Update the cloud provider if different
-            region="us-east-1"
-        )
+        dimension=768,  # Ensure this matches your embedding model's output dimension
+        metric="cosine",
+        spec=ServerlessSpec(cloud="aws", region=PINECONE_API_ENV)
     )
 
-# Access the index and upload data
+# Upload data to Pinecone index
 docsearch = Pinecone.from_texts(
-    text_chunks,  # Use the prepared text chunks
+    text_chunks,
     embeddings,
     index_name=index_name
 )

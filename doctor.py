@@ -54,8 +54,8 @@ try:
                 # Wait for the page to load
                 wait = WebDriverWait(driver, 60)
                 try:
-                    doctor_list = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'overlay-listings')]")))
-                except Exception as e:
+                    doctor_list = wait.until(EC.presence_of_element_located((By.XPATH, "//ul[contains(@class, 'b_vlistb')]")))
+                except Exception:
                     print(f"No results found for {specialty} in {location}. Skipping...")
                     continue
                 
@@ -104,7 +104,7 @@ try:
                 driver.quit()
 
 finally:
-    # Save results to CSV
+    # Save results to CSV with UTF-8 encoding
     df = pd.DataFrame(results)
-    df.to_csv('doctors_data_multiple_locations.csv', index=False)
+    df.to_csv('raw_doctors_data_multiple_locations.csv', index=False, encoding='utf-8')
     print("Data successfully saved to doctors_data_multiple_locations.csv!")
