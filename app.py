@@ -9,6 +9,7 @@ from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
+from twilio.rest import Client  # Twilio for SMS
 import os
 import logging
 import warnings
@@ -24,6 +25,10 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
+
 index_name = "zf"
 
 # Load embeddings for all-mpnet-base-v2 (768-dimensional embeddings)
@@ -35,7 +40,7 @@ pinecone_instance = PineconeClient(api_key=PINECONE_API_KEY)
 if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
     pinecone_instance.create_index(
         name=index_name,
-        dimension=768,  # Updated for 768-dimensional embeddings
+        dimension=768,
         metric='cosine',
         spec=ServerlessSpec(cloud='aws', region=PINECONE_API_ENV)
     )
@@ -54,7 +59,50 @@ PROMPT = PromptTemplate(
     ),
     input_variables=["context", "question"]
 )
+
 chain_type_kwargs = {"prompt": PROMPT}
+
+# Twilio Client for SMS
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# Specialty translation mapping (English -> German)
+SPECIALTY_TRANSLATIONS = {
+    "cardiology": "kardiologie",
+    "dermatology": "dermatologie",
+    "neurology": "neurologie",
+    "orthopedics": "orthopadie",
+    "pediatrics": "padiatrie",
+    "gynecology": "gynakologie",
+    "urology": "urologie",
+    "endocrinology": "endokrinologie",
+    "gastroenterology": "gastroenterologie",
+    "ophthalmology": "augenheilkunde",
+    "psychiatry": "psychiatrie",
+    "pulmonology": "pneumologie",
+    "rheumatology": "rheumatologie",
+    "dentistry": "zahnarzt",
+    "general practice": "hausarzt",
+    "otolaryngology (ent)": "hals-nasen-ohren-heilkunde",
+    "physical therapy": "physiotherapie",
+    "radiology": "radiologie",
+    "oncology": "onkologie",
+    "hematology": "hamatologie",
+    "anesthesiology": "anästhesiologie",
+    "nephrology": "nephrologie",
+    "surgery": "chirurgie",
+    "internal medicine": "innere-medizin",
+    "infectious diseases": "infektionskrankheiten",
+    "sports medicine": "sportmedizin",
+    "immunology": "immunologie",
+    "nutrition": "ernährungsberatung",
+    "occupational medicine": "arbeitsmedizin",
+    "pain management": "schmerztherapie",
+}
+
+def translate_specialty(english_specialty):
+    """Convert English medical specialty to its German equivalent."""
+    specialty_lower = english_specialty.lower().strip()
+    return SPECIALTY_TRANSLATIONS.get(specialty_lower, specialty_lower)  # Fallback to original if not found
 
 # Define Chat Profiles
 @cl.set_chat_profiles
@@ -68,101 +116,75 @@ async def chat_profiles():
 
 # Initialize the LLM
 def initialize_llm(profile_name):
-    model_path = "model/mistral-13b-v0.1.Q3_K_M.gguf"  # Updated to Mistral Long Context model path
+    model_path = "model/mistral-13b-v0.1.Q3_K_M.gguf"
     return CTransformers(
         model=model_path,
         model_type="mistral",
         config={
-            'max_new_tokens': 4096,  # Number of tokens to generate
-            'context_length': 4096,  # Explicitly set context length to 4096
+            'max_new_tokens': 4096,
+            'context_length': 4096,
             'temperature': 0.5
         }
     )
 
-# Truncate context for the model's token limit
-def truncate_context(context, max_tokens=4096):
-    """
-    Truncate the context to fit within the maximum token limit.
-    """
-    tokens = context.split()
-    if len(tokens) > max_tokens:
-        return " ".join(tokens[-max_tokens:])  # Keep only the last max_tokens tokens
-    return context
-
-# Define synchronous long-running task
-def long_running_task(input_data, llm):
-    """Improved long-running synchronous task for LLM inference."""
-    logging.info("Generating response...")
-    qa = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=docsearch.as_retriever(search_kwargs={'k': 5}),
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": PROMPT}
-    )
-    result = qa.invoke(input_data)
-    logging.info("Response generated: %s", result["result"])
-    return result["result"]
-
-# Convert to async task
-async_long_running_task = cl.make_async(long_running_task)
+# Store user input for appointment booking
+user_appointment_info = {}
 
 @cl.on_chat_start
 async def start_chat():
-    """Send a welcome message when the chat starts."""
     await cl.Message(content="Welcome! Upload a PDF or ask a biomedical question to get started.").send()
 
 @cl.on_message
 async def handle_message(message):
-    """Handle user messages and file uploads."""
+    """Handles user messages and appointment booking."""
     try:
-        if message.type == "file":
-            logging.info("Processing uploaded file...")
-            loader = PyPDFLoader(message.file_path)
-            documents = loader.load()
+        global user_appointment_info
 
-            # Split text into manageable chunks
-            text_splitter = CharacterTextSplitter(chunk_size=4000, chunk_overlap=500)
-            texts = text_splitter.split_documents(documents)
-
-            # Add chunks to Pinecone index in batches
-            batch_size = 10
-            for i in range(0, len(texts), batch_size):
-                docsearch.add_texts([t.page_content for t in texts[i:i + batch_size]])
-
-            await cl.Message(content="PDF uploaded and processed successfully! You can now ask questions about its content.").send()
+        # Step 1: Check if user wants to book an appointment
+        if "book an appointment" in message.content.lower():
+            user_appointment_info[message.author] = {}
+            await cl.Message(content="Sure! What is your location (e.g., Berlin, Munich)?").send()
             return
 
-        # Handle regular text messages
-        logging.info("Message received from UI: %s", message.content)
-        query = message.content
+        # Step 2: Get the location
+        if message.author in user_appointment_info and "location" not in user_appointment_info[message.author]:
+            user_appointment_info[message.author]["location"] = message.content.lower()
+            await cl.Message(content="Got it! What specialty do you need (e.g., cardiology, dermatology)?").send()
+            return
 
-        # Retrieve the selected chat profile
-        chat_profile = cl.user_session.get("chat_profile", "Mistral Biomedical")
+        # Step 3: Get the medical specialty and translate it
+        if message.author in user_appointment_info and "specialty" not in user_appointment_info[message.author]:
+            english_specialty = message.content.lower().strip()
+            german_specialty = translate_specialty(english_specialty)  # Ensure translation happens
+            user_appointment_info[message.author]["specialty"] = german_specialty
+            await cl.Message(content="Finally, please provide your phone number so we can send the booking link.").send()
+            return
 
-        # Initialize the LLM based on the selected chat profile
-        llm = initialize_llm(chat_profile)
+        # Step 4: Get the phone number and send booking link
+        if message.author in user_appointment_info and "phone_number" not in user_appointment_info[message.author]:
+            user_appointment_info[message.author]["phone_number"] = message.content
 
-        # Send a processing message
-        await cl.Message(content=f"Processing your request with the '{chat_profile}' profile, please wait...").send()
+            # Ensure translated specialty is used
+            location = user_appointment_info[message.author]["location"].replace(" ", "-")
+            specialty = user_appointment_info[message.author]["specialty"].replace(" ", "-")
 
-        # Retrieve documents
-        retriever = docsearch.as_retriever(search_kwargs={'k': 5})
-        docs = retriever.invoke(query)
+            # Correct Doctolib link with German specialty
+            booking_link = f"https://www.doctolib.de/{specialty}/{location}"
 
-        # Combine and truncate context
-        context = " ".join([doc.page_content for doc in docs])
-        truncated_context = truncate_context(context, max_tokens=4096)
+            # Send SMS via Twilio
+            twilio_client.messages.create(
+                body=f"Your appointment booking link: {booking_link}",
+                from_=TWILIO_PHONE_NUMBER,
+                to=user_appointment_info[message.author]["phone_number"]
+            )
 
-        # Prepare input data for the LLM
-        input_data = {"query": query, "context": truncated_context}
+            # Confirm to the user
+            await cl.Message(content=f"Your booking link has been sent to {message.content}.").send()
+            
+            # Clear stored data
+            del user_appointment_info[message.author]
+            return
 
-        # Call the async long-running task
-        result = await async_long_running_task(input_data, llm)
-
-        # Update the user with the result
-        await cl.Message(content=result).send()
-        logging.info("Response sent successfully!")
     except Exception as e:
         logging.error("Error occurred: %s", e)
         await cl.Message(content="An error occurred while processing your request. Please try again.").send()
