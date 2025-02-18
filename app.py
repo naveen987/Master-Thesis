@@ -15,6 +15,9 @@ import logging
 import warnings
 import asyncio
 
+# -- Below: This is new import for DB reading:
+from database import get_user  # Make sure you have a get_user() function
+
 # Suppress PyTorch warnings
 warnings.filterwarnings("ignore", message=".*torch.utils._pytree.*")
 
@@ -111,12 +114,39 @@ async_long_running_task = cl.make_async(long_running_task)
 
 @cl.on_chat_start
 async def start_chat():
-    await cl.Message(content="Welcome! Upload a PDF or ask a biomedical question to get started. To book an appointment, type 'book an appointment'.").send()
+    """
+    Instead of looking for ?role=..., 
+    we read which user is logged in from an environment variable, 
+    find that user's role in the DB, and store it in session.
+    """
+    email = os.environ.get("LOGGED_IN_EMAIL", "")
+    role = None
+
+    if email:
+        user = get_user(email)  # returns e.g. (id, email, password, role)
+        if user:
+            role = user[3].strip().upper()  # e.g. 'PATIENT' or 'STUDENT'
+
+    cl.user_session.set("role", role)
+
+    if role == "PATIENT":
+        await cl.Message(
+            content="🩺 **Patient Chatbot**\n\nWelcome! Upload a PDF or ask a biomedical question to get started. "
+                    "To book an appointment, type 'book an appointment'."
+        ).send()
+    elif role == "STUDENT":
+        await cl.Message(
+            content="📘 **Student Chatbot**\n\nWelcome! Upload a PDF or ask a biomedical question to get started."
+        ).send()
+    else:
+        await cl.Message(content="❌ **ERROR: Role not recognized. Contact Support.**").send()
 
 @cl.on_message
 async def handle_message(message):
     try:
         global user_appointment_info
+        role = cl.user_session.get("role")  # 'PATIENT' or 'STUDENT' or None
+
         if message.type == "file":
             logging.info("Processing uploaded file...")
             loader = PyPDFLoader(message.file_path)
@@ -129,49 +159,52 @@ async def handle_message(message):
             for i in range(0, len(texts), batch_size):
                 docsearch.add_texts([t.page_content for t in texts[i:i + batch_size]])
 
-            await cl.Message(content="PDF uploaded and processed successfully! You can now ask questions about its content.").send()
+            await cl.Message(content="✅ PDF uploaded and processed successfully! You can now ask questions about its content.").send()
             return
 
         query = message.content.lower()
 
-        # Check if the user wants to book an appointment
-        if "book an appointment" in query:
-            user_appointment_info[message.author] = {}
-            await cl.Message(content="Sure! What is your location (e.g., Berlin, Munich)?").send()
-            return
-
-        if message.author in user_appointment_info:
-            if "location" not in user_appointment_info[message.author]:
-                user_appointment_info[message.author]["location"] = message.content
-                await cl.Message(content="Got it! What specialty do you need (e.g., cardiology, dermatology)?").send()
-                return
-            elif "specialty" not in user_appointment_info[message.author]:
-                user_appointment_info[message.author]["specialty"] = message.content
-                await cl.Message(content="Finally, please provide your phone number so we can send the booking link.").send()
-                return
-            elif "phone_number" not in user_appointment_info[message.author]:
-                user_appointment_info[message.author]["phone_number"] = message.content
-                location = user_appointment_info[message.author]["location"].replace(" ", "-")
-                specialty = user_appointment_info[message.author]["specialty"].replace(" ", "-")
-                booking_link = f"https://www.doctolib.de/{specialty}/{location}"
-                twilio_client.messages.create(
-                    body=f"Your appointment booking link: {booking_link}",
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=user_appointment_info[message.author]["phone_number"]
-                )
-                await cl.Message(content=f"Your booking link has been sent to {message.content}.").send()
-                del user_appointment_info[message.author]
+        # Patient: Allow appointment booking
+        if role == "PATIENT":
+            if "book an appointment" in query:
+                user_appointment_info[message.author] = {}
+                await cl.Message(content="📍 Sure! What is your location (e.g., Berlin, Munich)?").send()
                 return
 
+            if message.author in user_appointment_info:
+                if "location" not in user_appointment_info[message.author]:
+                    user_appointment_info[message.author]["location"] = message.content
+                    await cl.Message(content="🩺 Got it! What specialty do you need (e.g., cardiology, dermatology)?").send()
+                    return
+                elif "specialty" not in user_appointment_info[message.author]:
+                    user_appointment_info[message.author]["specialty"] = message.content
+                    await cl.Message(content="📞 Finally, please provide your phone number so we can send the booking link.").send()
+                    return
+                elif "phone_number" not in user_appointment_info[message.author]:
+                    user_appointment_info[message.author]["phone_number"] = message.content
+                    location = user_appointment_info[message.author]["location"].replace(" ", "-")
+                    specialty = user_appointment_info[message.author]["specialty"].replace(" ", "-")
+                    booking_link = f"https://www.doctolib.de/{specialty}/{location}"
+                    twilio_client.messages.create(
+                        body=f"📅 Your appointment booking link: {booking_link}",
+                        from_=TWILIO_PHONE_NUMBER,
+                        to=user_appointment_info[message.author]["phone_number"]
+                    )
+                    await cl.Message(content=f"✅ Your booking link has been sent to {message.content}.").send()
+                    del user_appointment_info[message.author]
+                    return
+
+        # Common logic for both STUDENT and PATIENT
         chat_profile = cl.user_session.get("chat_profile", "Mistral Biomedical")
         llm = initialize_llm()
-        await cl.Message(content=f"Processing your request with the '{chat_profile}' profile, please wait...").send()
+        await cl.Message(content=f"⏳ Processing your request with the **'{chat_profile}'** profile, please wait...").send()
         retriever = docsearch.as_retriever(search_kwargs={'k': 5})
         docs = retriever.invoke(query)
         context = " ".join([doc.page_content for doc in docs])
         input_data = {"query": query, "context": context}
         result = await async_long_running_task(input_data, llm)
         await cl.Message(content=result).send()
+
     except Exception as e:
-        logging.error("Error occurred: %s", e)
-        await cl.Message(content="An error occurred while processing your request. Please try again.").send()
+        logging.error("❌ Error occurred: %s", e)
+        await cl.Message(content="⚠️ An error occurred while processing your request. Please try again.").send()

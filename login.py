@@ -1,54 +1,71 @@
 from flask import Flask, render_template, request, redirect, url_for
-from database import init_db, add_user, get_user
+from database import init_db, get_user, add_user
 import subprocess
 import threading
-import psutil
+import os
+import time
+import requests
 
 app = Flask(__name__)
 
 # Initialize the database
 init_db()
 
-# Updated ports
-FLASK_PORT = 5002  # Running Flask on port 5002
-CHATBOT_PORT = 8001  # Running Chainlit on port 8001
+# Ports
+FLASK_PORT = 5002       # Flask will run on port 5002
+CHATBOT_PORT = 8001     # Chainlit will run on port 8001
+chainlit_process = None  # Track the Chainlit process
 
-def is_port_in_use(port):
-    """Check if a port is already in use (Chainlit already running)."""
-    for conn in psutil.net_connections():
-        if conn.laddr.port == port:
-            return True
-    return False
+def is_chainlit_running():
+    """Check if Chainlit is running by sending a request to the server."""
+    try:
+        response = requests.get(f"http://localhost:{CHATBOT_PORT}")
+        return response.status_code == 200
+    except requests.exceptions.ConnectionError:
+        return False
 
-def start_chainlit():
-    """Start Chainlit server in the background if it's not already running."""
-    if is_port_in_use(CHATBOT_PORT):
+def start_chainlit(email):
+    """
+    Start Chainlit only if it's not already running.
+    Pass the logged-in user email as an environment variable so 
+    that Chainlit can fetch the role from the DB without needing URL params.
+    """
+    global chainlit_process
+    if is_chainlit_running():
         print("✅ Chainlit is already running.")
         return
-    
-    print("🔵 Starting Chainlit server in the background...")
-    subprocess.Popen(
-        ["chainlit", "run", "app.py", "--port", str(CHATBOT_PORT), "--no-auto-launch"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True  # Ensures it runs in the background
-    )
 
-# Ensure Chainlit starts once when Flask is launched
-threading.Thread(target=start_chainlit, daemon=True).start()
+    print(f"🔵 Launching Chainlit on port {CHATBOT_PORT}...")
+
+    chainlit_process = subprocess.Popen(
+        ["chainlit", "run", "app.py", "--port", str(CHATBOT_PORT)],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        stdout=subprocess.DEVNULL,  # Hide logs
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,  # Run in a separate process
+        env={
+            **os.environ,  # Inherit current environment variables
+            "LOGGED_IN_EMAIL": email
+        }
+    )
 
 @app.route("/", methods=["GET", "POST"])
 def login():
-    """Login route to authenticate users and redirect to Chainlit chatbot."""
+    """Login route to authenticate users and start Chainlit."""
     if request.method == "POST":
         email = request.form.get("email")
         password = request.form.get("password")
         user = get_user(email)
         if user and user[2] == password:
-            role = user[3]
-            chatbot_url = f"http://localhost:{CHATBOT_PORT}/?user={email}&role={role}"
-            print(f"🔀 Redirecting to Chainlit: {chatbot_url}")
-            return redirect(chatbot_url)
+            print(f"🟢 LOGIN SUCCESS: {email}")
+
+            # Start Chainlit if not running; pass the email to the new process
+            threading.Thread(target=start_chainlit, args=(email,), daemon=True).start()
+
+            # After login, display a loading page that will link to Chainlit
+            chatbot_url = f"http://localhost:{CHATBOT_PORT}/"
+            print(f"🔀 REDIRECTING TO: {chatbot_url}")
+            return render_template("loading.html", chatbot_url=chatbot_url)
         else:
             return render_template("login.html", error="Invalid email or password.")
     return render_template("login.html")

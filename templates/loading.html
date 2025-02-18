@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starting Chatbot...</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            padding: 50px;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+    <script>
+        function checkChatbotStatus() {
+            fetch("/check_chainlit_status")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "running") {
+                        window.location.href = "{{ chatbot_url }}"; // Redirect to chatbot
+                    } else {
+                        setTimeout(checkChatbotStatus, 1000); // Check again in 1 sec
+                    }
+                });
+        }
+        window.onload = checkChatbotStatus;
+    </script>
+</head>
+<body>
+    <p class="message">🔄 Starting Chatbot... Please wait.</p>
+    <p class="message">Once chatbot window opened you can close this window.</p>
+</body>
+</html>

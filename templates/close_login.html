@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    <script>
+        window.onload = function() {
+            let chatbotWindow = window.open("{{ chatbot_url }}", "_blank"); // Open chatbot in new tab
+            if (chatbotWindow) {
+                setTimeout(() => window.close(), 1000); // Close this tab after 1 second
+            } else {
+                document.getElementById("error-msg").style.display = "block";
+            }
+        };
+    </script>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 50px;
+        }
+        p {
+            font-size: 18px;
+            color: #333;
+        }
+        .error {
+            display: none;
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <p>✅ Successfully logged in. Redirecting to chatbot...</p>
+    <p id="error-msg" class="error">⚠️ Popup blocked! Please allow popups and click <a href="{{ chatbot_url }}" target="_blank">here</a> to open manually.</p>
+</body>
+</html>
