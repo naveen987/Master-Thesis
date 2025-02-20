@@ -194,7 +194,7 @@ async def handle_message(message):
                 if "location" not in user_appointment_info[message.author]:
                     user_appointment_info[message.author]["location"] = message.content
                     await cl.Message(
-                        content="🩺 Got it! What specialty do you need (e.g., cardiology, dermatology)?"
+                        content="🩺 Got it! What specialty do you need (e.g., cardiology, dermatology, neurology, etc.)?"
                     ).send()
                     return
                 elif "specialty" not in user_appointment_info[message.author]:
@@ -205,9 +205,93 @@ async def handle_message(message):
                     return
                 elif "phone_number" not in user_appointment_info[message.author]:
                     user_appointment_info[message.author]["phone_number"] = message.content
-                    location = user_appointment_info[message.author]["location"].replace(" ", "-")
-                    specialty = user_appointment_info[message.author]["specialty"].replace(" ", "-")
-                    booking_link = f"https://www.doctolib.de/{specialty}/{location}"
+                    
+                    # Mandatory conversion of city to German using a comprehensive translation map
+                    city_raw = user_appointment_info[message.author]["location"].strip()
+                    city_translation_map = {
+                        "berlin": "berlin",
+                        "munich": "muenchen",
+                        "cologne": "koeln",
+                        "nuremberg": "nuernberg",
+                        "wurzburg": "wurzburg",
+                        "frankfurt": "frankfurt-am-main",
+                        "stuttgart": "stuttgart",
+                        "dusseldorf": "duesseldorf",
+                        "hanover": "hannover",
+                        "hamburg": "hamburg",
+                        "leipzig": "leipzig",
+                        "dresden": "dresden",
+                        "bremen": "bremen",
+                        "dortmund": "dortmund",
+                        "essen": "essen",
+                        "bielefeld": "bielefeld",
+                        "bonn": "bonn",
+                        "mannheim": "mannheim",
+                        "karlsruhe": "karlsruhe",
+                        "wiesbaden": "wiesbaden",
+                        "augsburg": "augsburg",
+                        "aachen": "aachen",
+                        "osnabrueck": "osnabrueck",
+                        "darmstadt": "darmstadt",
+                        "regensburg": "regensburg",
+                        "ingolstadt": "ingolstadt",
+                        "wolfsburg": "wolfsburg",
+                        "ulm": "ulm",
+                        "offenbach": "offenbach",
+                        "heilbronn": "heilbronn",
+                        "pforzheim": "pforzheim",
+                        "oldenburg": "oldenburg",
+                        "kassel": "kassel",
+                        "fuerth": "fuerth",
+                        "magdeburg": "magdeburg",
+                        "freiburg": "freiburg",
+                        "kiel": "kiel",
+                        "rostock": "rostock",
+                        "chemnitz": "chemnitz",
+                        "hagen": "hagen",
+                        "saarbruecken": "saarbruecken",
+                        "potsdam": "potsdam",
+                        "ludwigshafen": "ludwigshafen-am-rhein",
+                        "witten": "witten",
+                        "reutlingen": "reutlingen",
+                        "koblenz": "koblenz",
+                        "bremerhaven": "bremerhaven",
+                        "solingen": "solingen",
+                        "heidelberg": "heidelberg"
+                    }
+                    city_lower = city_raw.lower()
+                    city_converted = city_translation_map.get(city_lower, city_raw)
+                    city_converted = city_converted.replace(" ", "-")
+                    
+                    # Mandatory conversion of specialty to German with a comprehensive translation map
+                    specialty_raw = user_appointment_info[message.author]["specialty"].strip()
+                    translation_map = {
+                        "cardiology": "kardiologie",
+                        "dermatology": "dermatologie",
+                        "neurology": "neurologie",
+                        "pediatrics": "pädiatrie",
+                        "orthopedics": "orthopädie",
+                        "gastroenterology": "gastroenterologie",
+                        "endocrinology": "endokrinologie",
+                        "rheumatology": "rheumatologie",
+                        "pulmonology": "pneumologe",
+                        "oncology": "onkologie",
+                        "urology": "urologie",
+                        "gynecology": "gynäkologie",
+                        "ophthalmology": "ophthalmologie",
+                        "otolaryngology": "hals-nasen-ohren-heilkunde",
+                        "psychiatry": "psychiatrie",
+                        "surgery": "chirurgie",
+                        "radiology": "radiologie",
+                        "nephrology": "nephrologie",
+                        "immunology": "immunologie",
+                        "allergy": "allergologie"
+                    }
+                    specialty_lower = specialty_raw.lower()
+                    specialty_converted = translation_map.get(specialty_lower, specialty_raw)
+                    specialty_converted = specialty_converted.replace(" ", "-")
+                    
+                    booking_link = f"https://www.doctolib.de/{specialty_converted}/{city_converted}"
                     twilio_client.messages.create(
                         body=f"📅 Your appointment booking link: {booking_link}",
                         from_=TWILIO_PHONE_NUMBER,
