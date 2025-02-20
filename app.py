@@ -34,11 +34,11 @@ TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
 
 index_name = "zf"
 
-# Load embeddings for all-mpnet-base-v2 (768-dimensional embeddings)
+# 1) Load embeddings for all-mpnet-base-v2 (768-dimensional embeddings)
 embedding_model = SentenceTransformer('all-mpnet-base-v2')
 embeddings = download_hugging_face_embeddings()
 
-# Initialize Pinecone
+# 2) Initialize Pinecone
 pinecone_instance = PineconeClient(api_key=PINECONE_API_KEY)
 if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
     pinecone_instance.create_index(
@@ -48,10 +48,10 @@ if index_name not in [index.name for index in pinecone_instance.list_indexes()]:
         spec=ServerlessSpec(cloud='aws', region=PINECONE_API_ENV)
     )
 
-# Access the index
+# 3) Access the index
 docsearch = Pinecone.from_existing_index(index_name, embeddings)
 
-# Define prompt template
+# 4) Define prompt template
 PROMPT = PromptTemplate(
     template=(
         "You are a medical assistant. Based on the following context, "
@@ -65,10 +65,10 @@ PROMPT = PromptTemplate(
 
 chain_type_kwargs = {"prompt": PROMPT}
 
-# Twilio Client for SMS
+# 5) Twilio Client for SMS (optional)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Define Chat Profiles
+# 6) Define Chat Profiles
 @cl.set_chat_profiles
 async def chat_profiles():
     return [
@@ -78,7 +78,7 @@ async def chat_profiles():
         )
     ]
 
-# Initialize the LLM
+# 7) Initialize the LLM
 def initialize_llm():
     model_path = "model/mistral-13b-v0.1.Q3_K_M.gguf"
     return CTransformers(
@@ -93,10 +93,11 @@ def initialize_llm():
 
 llm = initialize_llm()
 
-# Appointment info global
+# 8) Appointment info global
 global user_appointment_info
 user_appointment_info = {}
 
+# 9) Long-running QA task
 def long_running_task(input_data, llm):
     logging.info("Generating response...")
     qa = RetrievalQA.from_chain_type(
@@ -112,11 +113,12 @@ def long_running_task(input_data, llm):
 
 async_long_running_task = cl.make_async(long_running_task)
 
+# 10) Chat start logic
 @cl.on_chat_start
 async def start_chat():
     """
-    We read which user is logged in from an environment variable, 
-    find that user's role in the DB, and store it in session.
+    On chat start, we read LOGGED_IN_EMAIL from environment, 
+    fetch the user's role from DB, store it in session, and greet them.
     """
     email = os.environ.get("LOGGED_IN_EMAIL", "")
     role = None
@@ -132,7 +134,7 @@ async def start_chat():
         await cl.Message(
             content=(
                 "🩺 **Patient Chatbot**\n\n"
-                "Welcome! Upload a PDF or ask a biomedical question to get started. "
+                "Welcome! You can upload a PDF (via the paperclip icon) or ask a biomedical question. "
                 "To book an appointment, type 'book an appointment'."
             )
         ).send()
@@ -141,29 +143,23 @@ async def start_chat():
         await cl.Message(
             content=(
                 "📘 **Student Chatbot**\n\n"
-                "Welcome! Upload a PDF or ask a biomedical question to get started."
+                "Welcome! You can upload a PDF (paperclip icon) or ask a biomedical question to get started."
             )
-        ).send()
-
-        # Show the upload button for students
-        await cl.AskFileMessage(
-            content="📂 Please upload a PDF file to analyze its content.",
-            accept=["application/pdf"],
-            max_size_mb=50,
         ).send()
 
     else:
         await cl.Message(content="❌ **ERROR: Role not recognized. Contact Support.**").send()
 
+# 11) Main message handler
 @cl.on_message
 async def handle_message(message):
     try:
         global user_appointment_info
         role = cl.user_session.get("role")  # 'PATIENT' or 'STUDENT' or None
 
-        # If a file is uploaded, handle it here
+        # If user uploaded a file via paperclip
         if message.type == "file":
-            logging.info("Processing uploaded file from user...")
+            logging.info("Processing uploaded file from user via paperclip...")
             loader = PyPDFLoader(message.file_path)
             documents = loader.load()
 
@@ -172,9 +168,8 @@ async def handle_message(message):
 
             batch_size = 10
             for i in range(0, len(texts), batch_size):
-                docsearch.add_texts([t.page_content for t in texts[i:i + batch_size]])
+                docsearch.add_texts([t.page_content for t in texts[i : i + batch_size]])
 
-            # Confirmation after successful file upload
             await cl.Message(
                 content=(
                     "✅ PDF uploaded and processed successfully! "
@@ -183,10 +178,10 @@ async def handle_message(message):
             ).send()
             return
 
-        # Otherwise, treat the message as a question
+        # Otherwise, treat the message as text
         query = message.content.lower()
 
-        # Patient appointment logic
+        # Appointment logic for PATIENT
         if role == "PATIENT":
             if "book an appointment" in query:
                 user_appointment_info[message.author] = {}
@@ -224,9 +219,11 @@ async def handle_message(message):
                     del user_appointment_info[message.author]
                     return
 
-        # Common logic for both STUDENT and PATIENT:
+        # Common logic for STUDENT and PATIENT
         chat_profile = cl.user_session.get("chat_profile", "Mistral Biomedical")
         llm = initialize_llm()
+
+        # Let user know we are processing
         await cl.Message(
             content=f"⏳ Processing your request with the **'{chat_profile}'** profile, please wait..."
         ).send()
@@ -234,13 +231,14 @@ async def handle_message(message):
         retriever = docsearch.as_retriever(search_kwargs={'k': 5})
         docs = retriever.invoke(query)
         context = " ".join([doc.page_content for doc in docs])
+
         input_data = {"query": query, "context": context}
         result = await async_long_running_task(input_data, llm)
 
         await cl.Message(content=result).send()
 
     except Exception as e:
-        logging.error("❌ Error occurred: %s", e)
+        logging.error(f"❌ Error occurred: {e}")
         await cl.Message(
             content="⚠️ An error occurred while processing your request. Please try again."
         ).send()
