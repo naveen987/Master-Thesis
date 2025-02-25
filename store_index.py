@@ -13,7 +13,7 @@ PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 PINECONE_API_ENV = os.environ.get('PINECONE_API_ENV')
 
 # Load JSON data from the first file
-with open('scraped_data_subsections.json', 'r', encoding='utf-8') as file1:
+with open('scraped_data_subsections_c.json', 'r', encoding='utf-8') as file1:
     data1 = json.load(file1)
 
 # Extract text chunks from the first JSON
@@ -25,16 +25,16 @@ for item in data1:
         text_chunks.append(f"{heading}: {content}")
 
 # Load JSON data from the second file
-with open('cleaned_doctors_data_multiple_locations.json', 'r', encoding='utf-8') as file2:
-    data2 = json.load(file2)
+#with open('cleaned_doctors_data_multiple_locations.json', 'r', encoding='utf-8') as file2:
+    #data2 = json.load(file2)
 
 # Extract text chunks from the second JSON
-for entry in data2:
-    doctor_name = entry.get('Doctor Name', entry.get('doctor_name', 'Unknown Doctor'))
-    specialty = entry.get('Specialty', entry.get('specialty', 'General'))
-    location = entry.get('Location', entry.get('location', 'Unknown Location'))
-    address = entry.get('Address', entry.get('address', 'Unknown Address'))
-    text_chunks.append(f"Doctor: {doctor_name}, Specialty: {specialty}, Location: {location}, Address: {address}")
+#for entry in data2:
+#    doctor_name = entry.get('Doctor Name', entry.get('doctor_name', 'Unknown Doctor'))
+#    specialty = entry.get('Specialty', entry.get('specialty', 'General'))
+#    location = entry.get('Location', entry.get('location', 'Unknown Location'))
+#    address = entry.get('Address', entry.get('address', 'Unknown Address'))
+#    text_chunks.append(f"Doctor: {doctor_name}, Specialty: {specialty}, Location: {location}, Address: {address}")
 
 # Download embeddings
 embeddings = download_hugging_face_embeddings()

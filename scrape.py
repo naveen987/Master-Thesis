@@ -1,3 +1,4 @@
+from httpcore import TimeoutException
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.edge.options import Options
@@ -23,7 +24,7 @@ driver = webdriver.Edge(service=service, options=edge_options)
 
 try:
     # Load the main webpage
-    driver.get("https://medlineplus.gov/ency/encyclopedia_A.htm")
+    driver.get("https://medlineplus.gov/ency/encyclopedia_C.htm")
     
     # Wait for the list of links to load
     WebDriverWait(driver, 40).until(
@@ -100,7 +101,7 @@ try:
         time.sleep(2)
     
     # Save the data to a JSON file
-    with open("scraped_data_subsections.json", "w", encoding="utf-8") as f:
+    with open("scraped_data_subsections_c.json", "w", encoding="utf-8") as f:
         json.dump(scraped_data, f, ensure_ascii=False, indent=4)
 
     print("Scraping completed. Data saved to scraped_data_subsections.json.")

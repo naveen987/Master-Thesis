@@ -2,8 +2,8 @@ import os
 import time
 import logging
 import numpy as np
+import plotly.graph_objects as go
 from sentence_transformers import SentenceTransformer, util
-from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 # Import your LLM chain initialization and retrieval functions.
 from app import initialize_llm, long_running_task, docsearch, PROMPT
@@ -24,8 +24,7 @@ def semantic_similarity(expected: str, response: str) -> float:
     cosine_sim = util.pytorch_cos_sim(embedding_expected, embedding_response)
     return cosine_sim.item()
 
-# Large test dataset based on MedlinePlus diseases (topics starting with "A" and related conditions).
-# Each test case includes a query, expected answer, and a source reference.
+# Large test dataset based on MedlinePlus diseases.
 test_data = [
     {
         "query": "What are the common symptoms of asthma?",
@@ -107,7 +106,6 @@ test_data = [
 def get_chatbot_response(query: str, context: str = "") -> str:
     """
     Runs your QA chain for a given query.
-    In a real evaluation, you may also integrate retrieved context from your vector DB.
     """
     input_data = {"query": query, "context": context}
     llm = initialize_llm()
@@ -117,7 +115,8 @@ def get_chatbot_response(query: str, context: str = "") -> str:
 def evaluate_retrieval(query: str, expected: str, k: int = 5) -> float:
     """
     Evaluates retrieval quality by fetching the top k documents for a query
-    and computing the average semantic similarity between each document's content and the expected answer.
+    and computing the average semantic similarity between each document's content
+    and the expected answer.
     """
     retriever = docsearch.as_retriever(search_kwargs={'k': k})
     docs = retriever.invoke(query)
@@ -130,16 +129,14 @@ def evaluate_responses():
     """
     Evaluates chatbot responses against expected answers using semantic similarity,
     and measures retrieval quality.
-    Prints details for each test case, including the source of truth reference.
+    Returns lists of similarity scores and retrieval scores.
     """
     similarity_scores = []
     retrieval_scores = []
     
-    print("=== Evaluating Chatbot Response Quality ===\n")
     for test in test_data:
         query = test["query"]
         expected = test["expected"]
-        reference = test["reference"]
         
         # Retrieve chatbot response.
         response = get_chatbot_response(query, context="")
@@ -153,46 +150,45 @@ def evaluate_responses():
         print(f"Query:                     {query}")
         print(f"Expected Answer:           {expected}")
         print(f"Chatbot Response:          {response}")
-        print(f"Source of Truth Reference: {reference}")
         print(f"Semantic Similarity Score (Generation): {sim_score:.2f}")
         print(f"Average Retrieval Similarity Score (top-5): {ret_score:.2f}")
         print("-" * 80)
     
-    avg_similarity = np.mean(similarity_scores)
-    avg_retrieval = np.mean(retrieval_scores)
-    print(f"\nAverage Semantic Similarity Score (Generation): {avg_similarity:.2f}")
-    print(f"Average Retrieval Similarity Score: {avg_retrieval:.2f}")
+    return similarity_scores, retrieval_scores
 
-def evaluate_latency():
+def plot_evaluation(similarity_scores, retrieval_scores):
     """
-    Measures and prints the latency (response time) for each test query.
+    Uses Plotly to plot the semantic similarity scores for generation and retrieval,
+    and saves the graph as a PNG file.
     """
-    latencies = []
-    print("\n=== Latency Evaluation ===\n")
-    for test in test_data:
-        query = test["query"]
-        start_time = time.time()
-        _ = get_chatbot_response(query, context="")
-        end_time = time.time()
-        latency = end_time - start_time
-        latencies.append(latency)
-        print(f"Query: {query}")
-        print(f"Response Time: {latency:.2f} seconds")
-        print("-" * 60)
-    avg_latency = np.mean(latencies)
-    print(f"\nAverage Response Time: {avg_latency:.2f} seconds\n")
-
-def evaluate_perplexity():
-    """
-    A placeholder function for perplexity measurement.
-    Replace with your LLM's actual perplexity computation if available.
-    """
-    dummy_loss = 5.0  # Example dummy loss value (lower implies better prediction)
-    perplexity = np.exp(dummy_loss)
-    print(f"Perplexity (dummy value): {perplexity:.2f}")
+    test_case_indices = list(range(len(test_data)))
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=test_case_indices,
+        y=similarity_scores,
+        mode='lines+markers',
+        name='Generation Similarity'
+    ))
+    fig.add_trace(go.Scatter(
+        x=test_case_indices,
+        y=retrieval_scores,
+        mode='lines+markers',
+        name='Retrieval Similarity'
+    ))
+    fig.update_layout(
+        title="Semantic Similarity Scores per Test Case",
+        xaxis_title="Test Case Index",
+        yaxis_title="Similarity Score",
+        template="plotly_white"
+    )
+    fig.show()
+    # Save the graph as a PNG file
+    fig.write_image("evaluation_graph.png")
 
 if __name__ == "__main__":
-    evaluate_responses()
-    evaluate_latency()
-    print("\n=== Evaluating LLM Perplexity ===")
-    evaluate_perplexity()
+    # Evaluate responses and collect scores.
+    sim_scores, ret_scores = evaluate_responses()
+    
+    # Plot evaluation metrics using Plotly.
+    plot_evaluation(sim_scores, ret_scores)
