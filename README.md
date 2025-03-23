@@ -1,6 +1,6 @@
 # AI-Driven Medical Chatbot for Medical Students and Patients
 
-SRH-CHATBOT-V3 is a sophisticated chatbot system tailored for university environments, designed to deliver efficient and precise responses by utilizing cutting-edge technologies such as Meta Llama2 and Pinecone. Engineered for simplicity and scalability, it is ideally suited for diverse university-related applications, from streamlining administrative tasks and improving operational efficiency to facilitating interactive learning environments for students and faculty. This chatbot aims to transform communication within the university, ensuring that information and academic support are more accessible and effective for the entire university community.
+This thesis introduces an AI-driven medical chatbot designed to support both medical students and patients, leveraging advanced Large Language Models (Mistral 13B) and embedding-based retrieval (all-mpnet-base-v2). It addresses existing gaps by providing interactive educational content for medical students and accurate symptom analysis and automated appointment scheduling for patients. The evaluation results confirmed high semantic accuracy (average similarity: 0.92) and effective retrieval capabilities, while human expert ratings (average: 7.42/10) validated its practical reliability and real-world applicability. The work demonstrates significant potential to enhance healthcare interactions and medical education through intelligent, context-aware AI solutions.
 
 ## Getting Started
 Follow these steps to get your copy of SRH-CHATBOT-V3 up and running on your local machine for development and testing purposes.
@@ -8,15 +8,14 @@ Follow these steps to get your copy of SRH-CHATBOT-V3 up and running on your loc
 ### Prerequisites
 - **Anaconda**: Download and install Anaconda from the [official Anaconda website](https://www.anaconda.com/products/individual).
 - **Pinecone Account**: Sign up at [Pinecone.io](https://www.pinecone.io/).
-- **Google Cloud Storage Bucket**: Create a bucket in your Google Cloud account.
-- **Bing Search API Key**: Obtain your API key by following the steps at [Create a Bing Search Service Resource](https://docs.microsoft.com/en-us/azure/cognitive-services/bing-web-search/).
+
 
 ### Setup Instructions
 
 #### Step 1: Clone the Repository
 Clone the SRH-CHATBOT-V3 repository to your local machine using the command:
 ```bash
-git clone https://github.com/hassanspaceimam/SRH-CHATBOT-V3.git
+git clone https://github.com/naveen987/Master-Thesis.git
 ```
 
 #### Step 2: Create a Conda Environment
@@ -40,11 +39,10 @@ Create a `.env` file in the root directory and add your Pinecone credentials and
 ```ini
 PINECONE_API_KEY = "your_pinecone_api_key_here"
 PINECONE_API_ENV = "your_pinecone_environment_here"
-BING_SEARCH_API_KEY = "your_bing_search_api_key_here"
 ```
 
 #### Step 5: Download and Set Up the Model
-Download the Llama 2 Model llama-2-13b-chat.ggmlv3.q4_0.bin from [Hugging Face](https://huggingface.co/TheBloke/Llama-2-13B-chat-GGML) and place it in the model directory.
+Download the Mistral 13B Model from [Hugging Face](https://huggingface.co/TheBloke/MistralMakise-Merged-13B-GGUF/tree/main) and place it in the model directory.
 
 
 #### Step 6: Prepare Data Index
@@ -68,10 +66,10 @@ This Pinecone index is essential for storing and retrieving vectorized represent
 
 ### Launch the Application
 
-#### Using Streamlit
-Run the application using Streamlit:
+#### Using chainlit
+Run the application using Chainlit:
 ```bash
-streamlit run appstreamlit.py
+chainlit run app.py
 ```
 Access the web interface at `http://localhost:8501/`.
 
@@ -91,11 +89,10 @@ Access the web interface at `http://localhost:8080/`.
 - Python: Core programming language
 - LangChain: Library for building language model applications
 - Flask: Web framework for building the backend
-- Meta Llama2: AI model for natural language understanding and generation
+- Mistral 13B: AI model for natural language understanding and generation
 - Pinecone: Vector database for similarity search
-- Streamlit: Framework for building interactive web apps
-- Google Cloud Storage: Cloud storage for PDF files
-- Bing Search API: Web search capabilities
+- Chainlitlit: Framework for building interactive web apps
+
 
 ### Acknowledgments
-Special thanks to SRH Heidelberg for supporting this project.
+Special thanks to  PROF. DR. CHANDNA SWATI and PROF. DR. MEHRDAD JALALI  for supporting this project.
