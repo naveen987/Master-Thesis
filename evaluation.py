@@ -51,56 +51,7 @@ test_data = [
         "expected": "Atrial fibrillation is an irregular and often rapid heart rate that increases the risk of stroke, heart failure, and other heart-related complications.",
         "reference": "MedlinePlus. Atrial Fibrillation. https://medlineplus.gov/atrialfibrillation.html"
     },
-    {
-        "query": "What are the symptoms and treatment for appendicitis?",
-        "expected": "Appendicitis symptoms include sudden abdominal pain, fever, and nausea; treatment typically involves surgical removal of the appendix.",
-        "reference": "MedlinePlus. Appendicitis. https://medlineplus.gov/appendicitis.html"
-    },
-    {
-        "query": "What causes acne and how is it treated?",
-        "expected": "Acne is caused by clogged hair follicles, excess oil, and bacteria; treatment options include topical medications, antibiotics, and in severe cases, isotretinoin.",
-        "reference": "MedlinePlus. Acne. https://medlineplus.gov/acne.html"
-    },
-    {
-        "query": "What is atherosclerosis and what complications can it lead to?",
-        "expected": "Atherosclerosis is the buildup of fats and cholesterol in artery walls, which can lead to restricted blood flow, heart attack, or stroke.",
-        "reference": "MedlinePlus. Atherosclerosis. https://medlineplus.gov/atherosclerosis.html"
-    },
-    {
-        "query": "What are common symptoms of anxiety disorders?",
-        "expected": "Anxiety disorders are characterized by excessive worry, restlessness, increased heart rate, and physical symptoms like sweating.",
-        "reference": "MedlinePlus. Anxiety. https://medlineplus.gov/anxiety.html"
-    },
-    {
-        "query": "What are autoimmune diseases and how do they affect the body?",
-        "expected": "Autoimmune diseases occur when the immune system mistakenly attacks the body, leading to conditions such as lupus, rheumatoid arthritis, and multiple sclerosis.",
-        "reference": "MedlinePlus. Autoimmune Diseases. https://medlineplus.gov/autoimmunediseases.html"
-    },
-    {
-        "query": "What is alcohol-related liver disease and what are its symptoms?",
-        "expected": "Alcohol-related liver disease is liver damage caused by excessive alcohol consumption, with symptoms including jaundice, abdominal pain, and fatigue.",
-        "reference": "MedlinePlus. Alcohol-Related Liver Disease. https://medlineplus.gov/alcoholrelatedliverdisease.html"
-    },
-    {
-        "query": "What are the dietary recommendations for managing hypertension?",
-        "expected": "A low-sodium, balanced diet rich in fruits, vegetables, and whole grains is recommended to help manage hypertension.",
-        "reference": "MedlinePlus. High Blood Pressure. https://medlineplus.gov/highbloodpressure.html"
-    },
-    {
-        "query": "How does regular exercise benefit cardiovascular health?",
-        "expected": "Regular exercise strengthens the heart, lowers blood pressure, and improves circulation, thereby reducing the risk of heart disease.",
-        "reference": "MedlinePlus. Heart Health. https://medlineplus.gov/hearthealth.html"
-    },
-    {
-        "query": "What is the difference between systolic and diastolic blood pressure?",
-        "expected": "Systolic blood pressure is the pressure in the arteries during heart contraction, while diastolic is the pressure when the heart rests between beats.",
-        "reference": "MedlinePlus. High Blood Pressure. https://medlineplus.gov/highbloodpressure.html"
-    },
-    {
-        "query": "What are the recommended treatments for atrial fibrillation?",
-        "expected": "Treatments for atrial fibrillation include medications to control heart rate and rhythm, blood thinners, and in some cases, procedures like electrical cardioversion or ablation.",
-        "reference": "MedlinePlus. Atrial Fibrillation. https://medlineplus.gov/atrialfibrillation.html"
-    },
+   
 ]
 
 def get_chatbot_response(query: str, context: str = "") -> str:

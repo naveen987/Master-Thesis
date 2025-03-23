@@ -134,7 +134,7 @@ async def start_chat():
         await cl.Message(
             content=(
                 "🩺 **Patient Chatbot**\n\n"
-                "Welcome! You can upload a PDF (via the paperclip icon) or ask a biomedical question. "
+                "Welcome! Ask a biomedical question or Provide Your Symptoms. "
                 "To book an appointment, type 'book an appointment'."
             )
         ).send()
